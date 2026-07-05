@@ -1,0 +1,13 @@
+node_modules
+dist
+coverage
+.DS_Store
+.vite
+.desin-inspector
+examples/**/dist
+packages/**/dist
+.agents
+.playwright-cli
+output
+tmp
+skills-lock.json
