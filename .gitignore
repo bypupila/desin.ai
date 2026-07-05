@@ -6,3 +6,8 @@ coverage
 .desin-inspector
 examples/**/dist
 packages/**/dist
+.agents
+.playwright-cli
+output
+tmp
+skills-lock.json
