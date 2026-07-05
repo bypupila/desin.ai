@@ -1,0 +1,33 @@
+{
+  "name": "desin-ai-tool",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "examples/*"
+  ],
+  "scripts": {
+    "dev": "npm --workspace examples/vite-react run dev",
+    "build": "npm run build --workspaces --if-present",
+    "check": "npm run typecheck --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "clean": "npm run clean --workspaces --if-present",
+    "pack:packages": "npm pack --workspace @desin-ai/inspector --dry-run && npm pack --workspace @desin-ai/inspector-react --dry-run && npm pack --workspace @desin-ai/inspector-vite --dry-run",
+    "release:dry-run": "npm run clean && npm run build && npm run check && npm run pack:packages",
+    "release:publish": "npm run clean && npm run build && npm run check && npm publish --workspace @desin-ai/inspector && npm publish --workspace @desin-ai/inspector-react && npm publish --workspace @desin-ai/inspector-vite"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@vitejs/plugin-react": "^5.0.2",
+    "playwright": "^1.61.1",
+    "tsup": "^8.5.0",
+    "typescript": "^5.8.3",
+    "vite": "^7.0.0"
+  },
+  "overrides": {
+    "esbuild": "^0.28.1"
+  }
+}

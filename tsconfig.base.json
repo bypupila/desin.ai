@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "allowJs": false,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "baseUrl": ".",
+    "paths": {
+      "@desin-ai/inspector": ["packages/inspector/src/index.ts"],
+      "@desin-ai/inspector-vite": ["packages/inspector-vite/src/index.ts"],
+      "@desin-ai/inspector-vite/client": ["packages/inspector-vite/src/client.ts"],
+      "@desin-ai/inspector-react": ["packages/inspector-react/src/index.ts"]
+    }
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "name": "@desin-ai/inspector",
+  "version": "0.1.0",
+  "description": "Local website inspector for visual feedback, style notes, and copyable AI change bundles.",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "inspector",
+    "design-review",
+    "ux",
+    "vite",
+    "ai"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts --sourcemap --clean",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.0"
+  },
+  "dependencies": {
+    "gsap": "^3.15.0"
+  }
+}
