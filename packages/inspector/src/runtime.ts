@@ -15,6 +15,7 @@ import type {
   InspectorAPI,
   InspectorMode,
   InspectorOptions,
+  PersistedInspectorState,
   InspectorState,
   InspectorNote,
   NoteReference,
@@ -271,6 +272,31 @@ function createFragmentFromHtml(html: string): DocumentFragment {
   const template = document.createElement("template");
   template.innerHTML = html;
   return template.content.cloneNode(true) as DocumentFragment;
+}
+
+async function writeClipboardText(text: string): Promise<void> {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch {
+      // Clipboard permissions vary when the inspector is embedded in local projects.
+    }
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  const copied = document.execCommand("copy");
+  textarea.remove();
+  if (!copied) {
+    throw new Error("clipboard unavailable");
+  }
 }
 
 function getComputedPreviewValue(element: Element, property: string): string {
@@ -545,7 +571,16 @@ class DesinInspectorRuntime {
   private readonly handlePointerUp = (event: PointerEvent) => this.onPointerUp(event);
   private readonly handleKeyDown = (event: KeyboardEvent) => this.onKeyDown(event);
   private readonly handleResize = () => this.scheduleRender();
-  private readonly handleScroll = () => this.scheduleRender();
+  private readonly handleScroll = (event: Event) => {
+    const origin = event.composedPath()[0];
+    if (
+      this.getNoteEditor()?.matches(":focus") ||
+      (origin instanceof Node && this.shadow.contains(origin))
+    ) {
+      return;
+    }
+    this.scheduleRender();
+  };
   private readonly handleSelectionChange = () => this.onSelectionChange();
   private readonly handleClick = (event: Event) => this.onClick(event as MouseEvent);
   private readonly handleInput = (event: Event) => this.onInput(event);
@@ -567,10 +602,15 @@ class DesinInspectorRuntime {
   private lastOverlayAnimationKey = "";
   private hoveredNoteId: string | null = null;
   private composerFocusPending = false;
+  private composerFocusLockUntil = 0;
   private colorPickerActive = false;
   private renderPendingAfterColorPicker = false;
   private colorPickerReleaseTimer: number | null = null;
   private breakpointWarningVisible = false;
+  private lastPersistedStateJson = "";
+  private persistTimer: number | null = null;
+  private pendingPersistState: PersistedInspectorState | null = null;
+  private bundleUpdateTimer: number | null = null;
 
   constructor(options: InspectorOptions = {}) {
     this.options = {
@@ -866,7 +906,7 @@ class DesinInspectorRuntime {
         top: var(--note-card-top, 12px);
         display: none;
         width: var(--note-card-width, min(360px, calc(100vw - 24px)));
-        max-height: calc(100vh - 24px);
+        max-height: calc(100dvh - 24px);
         overflow: auto;
         padding: 10px;
         border-radius: 10px;
@@ -933,7 +973,7 @@ class DesinInspectorRuntime {
         position: fixed;
         width: 360px;
         max-width: calc(100vw - 32px);
-        max-height: calc(100vh - 32px);
+        max-height: calc(100dvh - 32px);
         border: 1px solid rgba(17, 17, 17, 0.08);
         border-radius: 12px;
         background: rgba(255, 255, 255, 0.96);
@@ -981,7 +1021,7 @@ class DesinInspectorRuntime {
         padding: 12px 14px 14px;
         display: grid;
         gap: 12px;
-        max-height: calc(100vh - 118px);
+        max-height: calc(100dvh - 118px);
         overflow: auto;
       }
 
@@ -1439,6 +1479,32 @@ class DesinInspectorRuntime {
         border-color: rgba(17, 17, 17, 0.16);
       }
 
+      .desin-chip:active,
+      .desin-icon-button:active,
+      .desin-primary-button:active,
+      .desin-mini-toggle:active,
+      .desin-format-button:active,
+      .desin-note-quick-button:active {
+        transform: translateY(1px) scale(0.98);
+      }
+
+      .desin-chip:focus-visible,
+      .desin-icon-button:focus-visible,
+      .desin-primary-button:focus-visible,
+      .desin-mini-toggle:focus-visible,
+      .desin-format-button:focus-visible,
+      .desin-note-quick-button:focus-visible,
+      .desin-note-pin__summary:focus-visible,
+      .desin-launcher:focus-visible,
+      .desin-slider:focus-visible,
+      .desin-color-input:focus-visible,
+      .desin-input:focus-visible,
+      .desin-editor:focus-visible,
+      .desin-note-edit:focus-visible {
+        outline: 2px solid #1f6c9f;
+        outline-offset: 2px;
+      }
+
       .desin-chip,
       .desin-mini-toggle {
         padding: 8px 10px;
@@ -1887,7 +1953,7 @@ class DesinInspectorRuntime {
       .desin-popover__body {
         padding: 0;
         gap: 0;
-        max-height: min(460px, calc(100vh - 112px));
+        max-height: min(460px, calc(100dvh - 112px));
       }
 
       .desin-palette {
@@ -2360,6 +2426,50 @@ class DesinInspectorRuntime {
         padding: 7px 10px;
         font-size: 11px;
       }
+
+      @media (max-width: 480px) {
+        .desin-popover {
+          width: calc(100vw - 16px);
+        }
+
+        .desin-popover--dock {
+          bottom: calc(72px + env(safe-area-inset-bottom));
+        }
+
+        .desin-popover__body {
+          max-height: calc(100dvh - 104px - env(safe-area-inset-bottom));
+        }
+
+        .desin-capsule,
+        .desin-launcher {
+          bottom: calc(10px + env(safe-area-inset-bottom));
+        }
+
+        .desin-icon-button,
+        .desin-mini-toggle {
+          min-width: 32px;
+          min-height: 32px;
+        }
+
+        .desin-save-button {
+          min-width: 68px;
+        }
+
+        .desin-design-actions {
+          overflow-x: auto;
+          overscroll-behavior-x: contain;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .desin-shell *,
+        .desin-shell *::before,
+        .desin-shell *::after {
+          scroll-behavior: auto !important;
+          transition-duration: 0.01ms !important;
+          animation-duration: 0.01ms !important;
+        }
+      }
     `;
   }
 
@@ -2409,7 +2519,28 @@ class DesinInspectorRuntime {
   }
 
   private persistState(): void {
-    const payload = this.getPersistedState();
+    this.pendingPersistState = this.getPersistedState();
+    if (this.persistTimer !== null) {
+      return;
+    }
+
+    this.persistTimer = window.setTimeout(() => {
+      this.persistTimer = null;
+      this.flushPersistState();
+    }, 160);
+  }
+
+  private flushPersistState(): void {
+    const payload = this.pendingPersistState;
+    this.pendingPersistState = null;
+    if (!payload) {
+      return;
+    }
+    const serialized = JSON.stringify(payload);
+    if (serialized === this.lastPersistedStateJson) {
+      return;
+    }
+    this.lastPersistedStateJson = serialized;
     const saveResult = this.storage.save(payload);
     if (saveResult instanceof Promise) {
       saveResult.catch(() => undefined);
@@ -2464,6 +2595,16 @@ class DesinInspectorRuntime {
     this.state.bundleText = renderChangeBundle(payload);
   }
 
+  private scheduleBundleTextUpdate(): void {
+    if (this.bundleUpdateTimer !== null) {
+      window.clearTimeout(this.bundleUpdateTimer);
+    }
+    this.bundleUpdateTimer = window.setTimeout(() => {
+      this.bundleUpdateTimer = null;
+      this.updateBundleText();
+    }, 120);
+  }
+
   private requireBreakpoint(action: "copiar" | "guardar"): boolean {
     if (hasActiveBreakpointScope(this.state.scope)) {
       return true;
@@ -2500,25 +2641,26 @@ class DesinInspectorRuntime {
 
     this.syncActiveSelection();
     this.state.hoverTarget = null;
-    this.state.toast = `${this.state.selections.length} selected`;
+    this.state.toast = `${this.state.selections.length} seleccionado${this.state.selections.length === 1 ? "" : "s"}`;
     if (this.state.mode === "idle") {
       this.state.mode = "style";
       this.state.stylePanel = "edit";
       this.state.collapsed = true;
     }
     this.updateBundleText();
-    if (this.state.mode === "note" || this.state.mode === "idea") {
-      this.queueComposerFocus(this.state.mode);
-    }
+    this.queueComposerFocus();
     if (shouldInsert) {
       this.insertReferenceIntoNoteEditor(snapshot);
+      this.persistState();
       return;
     }
+    this.persistState();
     this.scheduleRender();
   }
 
   private queueComposerFocus(_mode?: "note" | "idea"): void {
     this.composerFocusPending = true;
+    this.composerFocusLockUntil = Date.now() + 750;
   }
 
   private focusComposerEditor(): void {
@@ -2535,7 +2677,7 @@ class DesinInspectorRuntime {
     const range = document.createRange();
     range.selectNodeContents(editor);
     range.collapse(false);
-    const selection = window.getSelection();
+    const selection = this.getEditorSelection();
     selection?.removeAllRanges();
     selection?.addRange(range);
     this.noteEditorRange = range.cloneRange();
@@ -2664,7 +2806,7 @@ class DesinInspectorRuntime {
     const source = this.resolveSource(target);
     const snapshot = buildElementSnapshot(target, source);
     const isSelected = this.state.selections.some(
-      (selection) => selection.selector === snapshot.selector,
+      (selection) => this.selectionKey(selection) === this.selectionKey(snapshot),
     );
     const nextHoverTarget = isSelected ? null : snapshot;
     if (this.state.hoverTarget?.selector === nextHoverTarget?.selector) {
@@ -2731,20 +2873,21 @@ class DesinInspectorRuntime {
     });
 
     if (matched.length > 0) {
-      const selectionIds = new Set(this.state.selections.map((item) => item.selector));
+      const selectionIds = new Set(this.state.selections.map((item) => this.selectionKey(item)));
       const insertedSelections: SelectionTarget[] = [];
       for (const element of matched) {
         const snapshot = buildElementSnapshot(element, this.resolveSource(element));
-        if (!selectionIds.has(snapshot.selector)) {
+        if (!selectionIds.has(this.selectionKey(snapshot))) {
           this.state.selections.push(snapshot);
           insertedSelections.push(snapshot);
+          selectionIds.add(this.selectionKey(snapshot));
         }
       }
       this.syncActiveSelection();
       for (const selection of insertedSelections) {
         this.insertReferenceIntoNoteEditor(selection, { render: false });
       }
-      this.state.toast = `${this.state.selections.length} selected`;
+      this.state.toast = `${this.state.selections.length} seleccionado${this.state.selections.length === 1 ? "" : "s"}`;
       this.updateBundleText();
       this.persistState();
     }
@@ -2996,7 +3139,8 @@ class DesinInspectorRuntime {
 
     if (target instanceof HTMLElement && target.dataset.noteEditor === "true") {
       this.state.activeNoteText = target.innerHTML;
-      this.updateBundleText();
+      this.scheduleBundleTextUpdate();
+      this.persistState();
       return;
     }
 
@@ -3016,7 +3160,7 @@ class DesinInspectorRuntime {
           : note,
       );
       this.persistState();
-      this.updateBundleText();
+      this.scheduleBundleTextUpdate();
       return;
     }
 
@@ -3057,7 +3201,8 @@ class DesinInspectorRuntime {
 
     if (target instanceof HTMLElement && target.dataset.noteEditor === "true") {
       this.state.activeNoteText = target.innerHTML;
-      this.updateBundleText();
+      this.scheduleBundleTextUpdate();
+      this.persistState();
       return;
     }
 
@@ -3091,6 +3236,14 @@ class DesinInspectorRuntime {
 
   private onFocusOut(event: FocusEvent): void {
     const target = event.target as HTMLElement | null;
+    if (
+      target?.dataset.noteEditor === "true" &&
+      Date.now() < this.composerFocusLockUntil &&
+      this.state.mode !== "idle"
+    ) {
+      window.setTimeout(() => this.focusComposerEditor(), 0);
+      return;
+    }
     if (target instanceof HTMLInputElement && target.dataset.control === "color") {
       this.releaseColorPickerInteraction();
     }
@@ -3106,7 +3259,7 @@ class DesinInspectorRuntime {
       return;
     }
 
-    const selection = window.getSelection();
+    const selection = this.getEditorSelection();
     if (!selection || selection.rangeCount === 0) {
       return;
     }
@@ -3121,7 +3274,7 @@ class DesinInspectorRuntime {
 
     this.noteEditorRange = range.cloneRange();
     this.state.activeNoteText = editor.innerHTML;
-    this.updateBundleText();
+    this.scheduleBundleTextUpdate();
   }
 
   private onPaste(event: ClipboardEvent): void {
@@ -3202,6 +3355,10 @@ class DesinInspectorRuntime {
       window.clearTimeout(this.colorPickerReleaseTimer);
       this.colorPickerReleaseTimer = null;
     }
+    if (this.bundleUpdateTimer !== null) {
+      window.clearTimeout(this.bundleUpdateTimer);
+      this.bundleUpdateTimer = null;
+    }
   }
 
   private releaseColorPickerInteraction(): void {
@@ -3270,6 +3427,13 @@ class DesinInspectorRuntime {
     return this.shadow.querySelector<HTMLDivElement>('[data-note-editor="true"]');
   }
 
+  private getEditorSelection(): Selection | null {
+    const shadowWithSelection = this.shadow as ShadowRoot & {
+      getSelection?: () => Selection | null;
+    };
+    return shadowWithSelection.getSelection?.() ?? window.getSelection();
+  }
+
   private syncNoteEditorState(): void {
     const editor = this.getNoteEditor();
     if (!editor) {
@@ -3278,6 +3442,7 @@ class DesinInspectorRuntime {
 
     this.state.activeNoteText = editor.innerHTML;
     this.updateBundleText();
+    this.persistState();
   }
 
   private insertNodeAtRange(node: Node, range: Range, editor: HTMLElement): void {
@@ -3295,7 +3460,7 @@ class DesinInspectorRuntime {
     nextRange.setStartAfter(lastNode);
     nextRange.collapse(true);
 
-    const selection = window.getSelection();
+    const selection = this.getEditorSelection();
     selection?.removeAllRanges();
     selection?.addRange(nextRange);
     this.noteEditorRange = nextRange.cloneRange();
@@ -3308,7 +3473,7 @@ class DesinInspectorRuntime {
       return;
     }
 
-    const selection = window.getSelection();
+    const selection = this.getEditorSelection();
     const currentRange = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
     const withinEditor =
       currentRange !== null &&
@@ -3333,7 +3498,7 @@ class DesinInspectorRuntime {
       return;
     }
 
-    const selection = window.getSelection();
+    const selection = this.getEditorSelection();
     const currentRange = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
     const withinEditor =
       currentRange !== null &&
@@ -3384,7 +3549,7 @@ class DesinInspectorRuntime {
       return;
     }
 
-    const selection = window.getSelection();
+    const selection = this.getEditorSelection();
     const currentRange = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
     const withinEditor =
       currentRange !== null &&
@@ -3446,7 +3611,7 @@ class DesinInspectorRuntime {
     }
 
     const range = this.rangeFromPoint(x, y, editor);
-    const selection = window.getSelection();
+    const selection = this.getEditorSelection();
 
     if (range) {
       range.deleteContents();
@@ -3462,6 +3627,7 @@ class DesinInspectorRuntime {
 
     this.state.activeNoteText = editor.innerHTML;
     this.draggedNoteElement = null;
+    this.persistState();
     this.scheduleRender();
   }
 
@@ -3656,16 +3822,40 @@ class DesinInspectorRuntime {
       return "";
     }
 
-    const instructionHtml = note.instructionHtml ?? note.contentHtml ?? note.text;
-    const text = instructionHtml ? serializeComposerHtml(instructionHtml, note.selections ?? []) : "";
+    if (note.kind !== "idea" && !hasActiveBreakpointScope(normalizeScope(note.scope))) {
+      this.openSavedNote(note.id);
+      this.breakpointWarningVisible = true;
+      this.state.toast = "Define un breakpoint antes de copiar este comentario";
+      this.scheduleRender();
+      return "";
+    }
+
+    const noteIndex = Math.max(0, this.getRouteCommentNotes().findIndex((item) => item.id === note.id));
+    const text = note.kind === "idea"
+      ? renderChangeBundle({
+          route: note.route,
+          scope: normalizeScope(note.scope),
+          selections: note.selections ?? [],
+          notes: [note],
+          drafts: note.drafts ?? [],
+          structureContext: buildStructureContext(note.selections ?? []),
+          instructionHtml: note.instructionHtml ?? note.contentHtml ?? note.text,
+        })
+      : this.renderSavedCommentDocument(note, noteIndex);
     if (!text) {
       this.state.toast = "Nada para copiar";
       this.scheduleRender();
       return "";
     }
 
-    await navigator.clipboard.writeText(text);
-    this.state.toast = "Instrucción copiada";
+    try {
+      await writeClipboardText(text);
+      this.state.toast = "Instrucción y contexto copiados";
+    } catch {
+      this.state.toast = "No se pudo copiar. Revisa los permisos del navegador";
+      this.scheduleRender();
+      return "";
+    }
     this.scheduleRender();
     return text;
   }
@@ -3710,8 +3900,14 @@ class DesinInspectorRuntime {
       return "";
     }
 
-    await navigator.clipboard.writeText(text);
-    this.state.toast = "Copiado";
+    try {
+      await writeClipboardText(text);
+      this.state.toast = "Instrucciones copiadas";
+    } catch {
+      this.state.toast = "No se pudo copiar. Revisa los permisos del navegador";
+      this.scheduleRender();
+      return "";
+    }
     if (this.toastTimeout !== null) {
       window.clearTimeout(this.toastTimeout);
       this.toastTimeout = null;
@@ -3872,6 +4068,7 @@ class DesinInspectorRuntime {
   }
 
   private renderSelectionLayer(): string {
+    this.noteLookup.clear();
     const selectionBoxes = this.state.selections
       .map((selection) => {
         const liveElement = findElementForSnapshot(selection);
@@ -3902,7 +4099,7 @@ class DesinInspectorRuntime {
       : "";
 
     const notes = this.state.notes
-      .filter((note) => this.state.active || !note.done)
+      .filter((note) => note.route === currentRoute() && (this.state.active || !note.done))
       .map((note) => {
         const anchor = selectorForNote(note);
         if (!anchor) {
@@ -4186,7 +4383,6 @@ class DesinInspectorRuntime {
   }
 
   private renderDesignActions(canCopyInstruction: boolean): string {
-    const canCopy = canCopyInstruction && hasActiveBreakpointScope(this.state.scope);
     const showMissingBreakpoint = this.breakpointWarningVisible && !hasActiveBreakpointScope(this.state.scope);
     return `
       <div class="desin-design-actions" aria-label="Acciones de instrucción">
@@ -4317,7 +4513,7 @@ class DesinInspectorRuntime {
     `;
   }
 
-  private renderInstructionEditor(placeholder = "Selecciona elementos y escribe instrucciones"): string {
+  private renderInstructionEditor(placeholder = "Escribe el cambio para los elementos seleccionados"): string {
     const editorHtml = this.decorateInstructionTokens(this.state.activeNoteText);
 
     return `
@@ -4326,7 +4522,11 @@ class DesinInspectorRuntime {
           class="desin-editor"
           data-note-editor="true"
           contenteditable="true"
-          spellcheck="false"
+          role="textbox"
+          aria-label="Instrucciones del cambio"
+          aria-multiline="true"
+          spellcheck="true"
+          autocapitalize="sentences"
           data-placeholder="${escapeHtml(placeholder)}"
         >${editorHtml}</div>
       </div>
@@ -4388,7 +4588,7 @@ class DesinInspectorRuntime {
     const selections = this.state.selections.length > 0 ? this.state.selections : [];
 
     for (const selection of selections) {
-      unique.set(selection.selector, createNoteReference(selection));
+      unique.set(this.selectionKey(selection), createNoteReference(selection));
     }
 
     return [...unique.values()];
@@ -4728,7 +4928,7 @@ class DesinInspectorRuntime {
 
   private renderLauncher(): string {
     return `
-      <button class="desin-launcher" data-action="show-inspector" type="button" title="Show inspector">
+      <button class="desin-launcher" data-action="show-inspector" type="button" title="Mostrar inspector" aria-label="Mostrar inspector">
         <span class="desin-launcher__badge">${this.renderIcon("cursor")}</span>
       </button>
     `;
@@ -4739,7 +4939,7 @@ class DesinInspectorRuntime {
       return "";
     }
 
-    return `<div class="desin-toast">${escapeHtml(this.state.toast)}</div>`;
+    return `<div class="desin-toast" role="status" aria-live="polite">${escapeHtml(this.state.toast)}</div>`;
   }
 
   private render(): void {
@@ -4747,7 +4947,7 @@ class DesinInspectorRuntime {
       return;
     }
 
-    this.updateBundleText();
+    const shouldRestoreComposerFocus = this.getNoteEditor()?.matches(":focus") ?? false;
     this.shadow.innerHTML = "";
     this.shadow.appendChild(this.styleElement);
     const shell = document.createElement("div");
@@ -4779,12 +4979,15 @@ class DesinInspectorRuntime {
       }, 1400);
     }
 
-    if (this.composerFocusPending && (this.state.mode === "note" || this.state.mode === "idea")) {
-      this.focusComposerEditor();
+    if ((this.composerFocusPending || shouldRestoreComposerFocus) && this.state.mode !== "idle") {
       this.composerFocusPending = false;
+      window.setTimeout(() => {
+        if (!this.disposed && this.state.mode !== "idle") {
+          this.focusComposerEditor();
+        }
+      }, 0);
     }
 
-    this.persistState();
   }
 
   private animateOverlay(): void {
@@ -4800,32 +5003,32 @@ class DesinInspectorRuntime {
     if (popover) {
       gsap.fromTo(
         popover,
-        { autoAlpha: 0, xPercent: -50, y: 10, scale: 0.96, transformOrigin: "center bottom" },
-        { autoAlpha: 1, xPercent: -50, y: 0, scale: 1, duration: 0.28, ease: "back.out(1.7)", overwrite: "auto" },
+        { opacity: 0, xPercent: -50, y: 10, scale: 0.96, transformOrigin: "center bottom" },
+        { opacity: 1, xPercent: -50, y: 0, scale: 1, duration: 0.28, ease: "back.out(1.7)", overwrite: "auto" },
       );
     }
 
     if (capsule) {
       gsap.fromTo(
         capsule,
-        { autoAlpha: 0, xPercent: -50, y: 8, scale: 0.92 },
-        { autoAlpha: 1, xPercent: -50, y: 0, scale: 1, duration: 0.24, ease: "back.out(1.9)", overwrite: "auto" },
+        { opacity: 0, xPercent: -50, y: 8, scale: 0.92 },
+        { opacity: 1, xPercent: -50, y: 0, scale: 1, duration: 0.24, ease: "back.out(1.9)", overwrite: "auto" },
       );
     }
 
     if (launcher) {
       gsap.fromTo(
         launcher,
-        { autoAlpha: 0, xPercent: -50, y: 8, scale: 0.85 },
-        { autoAlpha: 1, xPercent: -50, y: 0, scale: 1, duration: 0.22, ease: "back.out(2)", overwrite: "auto" },
+        { opacity: 0, xPercent: -50, y: 8, scale: 0.85 },
+        { opacity: 1, xPercent: -50, y: 0, scale: 1, duration: 0.22, ease: "back.out(2)", overwrite: "auto" },
       );
     }
 
     if (controls.length > 0) {
       gsap.fromTo(
         controls,
-        { autoAlpha: 0, y: 3 },
-        { autoAlpha: 1, y: 0, duration: 0.18, ease: "power2.out", stagger: 0.012, overwrite: "auto" },
+        { opacity: 0, y: 3 },
+        { opacity: 1, y: 0, duration: 0.18, ease: "power2.out", stagger: 0.012, overwrite: "auto" },
       );
     }
 
@@ -4939,7 +5142,7 @@ class DesinInspectorRuntime {
   }
 
   private onStatefulCopy(): void {
-    this.state.toast = "Change Bundle copied";
+    this.state.toast = "Instrucciones copiadas";
     this.scheduleRender();
   }
 
@@ -4947,12 +5150,14 @@ class DesinInspectorRuntime {
     this.state.active = true;
     this.state.hidden = false;
     this.reapplyStyleDrafts();
+    this.persistState();
     this.scheduleRender();
   }
 
   deactivate(): void {
     this.state.active = false;
     this.restoreSelectionPreviewStyles();
+    this.persistState();
     this.scheduleRender();
   }
 
@@ -4981,7 +5186,7 @@ class DesinInspectorRuntime {
       this.state.pointerMode = "idle";
     }
     if (mode === "select") {
-      this.state.toast = "Select an element";
+      this.state.toast = "Selecciona un elemento";
     }
     this.persistState();
     this.scheduleRender();
@@ -4997,10 +5202,11 @@ class DesinInspectorRuntime {
     this.state.activeSelectionId = null;
     this.state.activeNoteId = null;
     this.state.hoverTarget = null;
-    this.state.toast = "Selection cleared";
+    this.state.toast = "Selección eliminada";
     this.state.activeNoteText = "";
     this.noteEditorRange = null;
     this.draggedNoteElement = null;
+    this.persistState();
     this.updateBundleText();
     this.scheduleRender();
   }
@@ -5150,7 +5356,7 @@ class DesinInspectorRuntime {
         createdAt: Date.now(),
       },
     ];
-    this.state.toast = `${property} updated`;
+    this.state.toast = `${STYLE_LABELS[property] ?? property} actualizado`;
     this.persistState();
     this.updateBundleText();
     if (options.render !== false) {
@@ -5237,8 +5443,14 @@ class DesinInspectorRuntime {
         });
     this.state.bundleText = bundle;
 
-    await navigator.clipboard.writeText(bundle);
-    this.state.toast = "Change Bundle copied";
+    try {
+      await writeClipboardText(bundle);
+      this.state.toast = "Instrucciones copiadas";
+    } catch (error) {
+      this.state.toast = "No se pudo copiar. Revisa los permisos del navegador";
+      this.scheduleRender();
+      throw error;
+    }
     if (this.toastTimeout !== null) {
       window.clearTimeout(this.toastTimeout);
       this.toastTimeout = null;
@@ -5281,6 +5493,12 @@ class DesinInspectorRuntime {
       window.clearTimeout(this.colorPickerReleaseTimer);
       this.colorPickerReleaseTimer = null;
     }
+    if (this.persistTimer !== null) {
+      window.clearTimeout(this.persistTimer);
+      this.persistTimer = null;
+    }
+    this.pendingPersistState = this.getPersistedState();
+    this.flushPersistState();
     this.root.remove();
   }
 }

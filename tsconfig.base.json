@@ -17,7 +17,10 @@
     "esModuleInterop": true,
     "baseUrl": ".",
     "paths": {
-      "@desin-ai/inspector": ["packages/inspector/src/index.ts"],
+      "@design-bypupila/inspector": ["packages/inspector/src/index.ts"],
+      "@design-bypupila/inspector/vite": ["packages/inspector/src/vite/index.ts"],
+      "@design-bypupila/inspector/vite/client": ["packages/inspector/src/vite/client.ts"],
+      "@design-bypupila/inspector/react": ["packages/inspector/src/react.ts"],
       "@desin-ai/inspector-vite": ["packages/inspector-vite/src/index.ts"],
       "@desin-ai/inspector-vite/client": ["packages/inspector-vite/src/client.ts"],
       "@desin-ai/inspector-react": ["packages/inspector-react/src/index.ts"]

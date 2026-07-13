@@ -30,7 +30,7 @@ textarea {
 }
 
 .app-shell {
-  min-height: 100vh;
+  min-height: 100dvh;
   padding: 28px;
   display: grid;
   gap: 20px;
@@ -106,19 +106,7 @@ h1 {
 }
 
 .primary-btn--publish {
-  width: 129px;
-  gap: 0;
-  border-radius: 25px;
-  background-color: #dd0303;
-  color: #000000;
-  font-size: 19px;
-}
-
-.app-shell .eyebrow,
-.app-shell .hero-copy h2,
-.app-shell .lede,
-.app-shell .hero-panel__body strong {
-  color: #ce2c2c;
+  min-width: 92px;
 }
 
 .hero {
@@ -142,51 +130,18 @@ h1 {
 }
 
 .surface-head__title--hero {
-  font-family: "SF Pro Display", "Geist Sans", "Helvetica Neue", "Segoe UI", sans-serif;
-  font-size: 40px;
-  font-weight: 700;
-  line-height: 43.2px;
-  letter-spacing: -1.2px;
-  text-align: start;
-  text-transform: none;
-  font-style: normal;
-  color: #ce2c2c;
-  background-color: transparent;
-  border-color: #ce2c2c;
-  fill: #000000;
-  stroke: none;
-  width: 266.875px;
-  height: 259.172px;
-  min-width: auto;
-  max-width: 266.88px;
-  padding: 0;
-  margin: 0;
-  border-radius: 0;
-  gap: normal;
+  font-size: clamp(20px, 2vw, 28px);
+  font-weight: 650;
+  line-height: 1.1;
+  letter-spacing: -0.025em;
 }
 
 .surface-head__title--tasks {
-  font-family: "SF Pro Display", "Geist Sans", "Helvetica Neue", "Segoe UI", sans-serif;
   font-size: 13px;
-  font-weight: 700;
-  line-height: normal;
-  letter-spacing: 1.04px;
-  text-align: start;
+  font-weight: 650;
+  line-height: 1.3;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  font-style: normal;
-  color: #ce2c2c;
-  background-color: transparent;
-  border-color: #ce2c2c;
-  fill: #000000;
-  stroke: none;
-  width: 366px;
-  height: 17.4062px;
-  min-width: auto;
-  max-width: none;
-  padding: 0;
-  margin: 0;
-  border-radius: 0;
-  gap: normal;
 }
 
 .hero-copy__metrics {
@@ -224,8 +179,7 @@ h1 {
 .hero-panel__header,
 .hero-panel__body,
 .content-grid,
-.task-list,
-table {
+.task-list {
   display: grid;
 }
 
@@ -267,7 +221,7 @@ table {
 }
 
 .metric-card__label--accent {
-  color: #ce2c2c;
+  color: #9a3412;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -374,7 +328,33 @@ table {
 
 table {
   width: 100%;
+  min-width: 680px;
   border-collapse: collapse;
+}
+
+.table-scroll {
+  overflow-x: auto;
+  border-radius: 8px;
+  scrollbar-gutter: stable;
+}
+
+button {
+  cursor: pointer;
+  transition: transform 160ms ease, background-color 160ms ease, border-color 160ms ease;
+}
+
+button:hover {
+  transform: translateY(-1px);
+}
+
+button:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+button:focus-visible,
+.table-scroll:focus-visible {
+  outline: 2px solid #346538;
+  outline-offset: 3px;
 }
 
 th,
@@ -398,5 +378,54 @@ th {
 
   .app-shell {
     padding: 16px;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-shell {
+    padding: 10px;
+    gap: 10px;
+  }
+
+  .topbar,
+  .hero,
+  .surface,
+  .table-surface {
+    padding: 14px;
+  }
+
+  .topbar {
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .topbar-actions {
+    gap: 6px;
+  }
+
+  .ghost-btn,
+  .primary-btn {
+    padding: 9px 10px;
+  }
+
+  .primary-btn--publish {
+    min-width: 0;
+  }
+
+  .hero-copy__metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .hero-copy__metrics strong {
+    padding: 12px 10px;
+    font-size: 20px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
   }
 }

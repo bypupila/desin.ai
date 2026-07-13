@@ -443,6 +443,24 @@ function renderInstructionPrecisionGuide(instructionText: string, selections: Se
   return guardrails.filter(Boolean).join("\n");
 }
 
+function renderTaskContext(payload: ChangeBundlePayload): string {
+  const scope = payload.scope.breakpoints.length > 0
+    ? payload.scope.breakpoints.join(", ")
+    : "not defined";
+  const targetCount = payload.selections.length;
+
+  return [
+    `Route: ${payload.route}`,
+    `Breakpoint scope: ${scope}`,
+    `Selected targets: ${targetCount}`,
+    targetCount > 0
+      ? "Reference contract: every [E#] token points to the exact matching element in Selected elements. Use its source/component first; use the selector and DOM Path as fallbacks."
+      : "Reference contract: no element target is attached to this request.",
+    "Snapshot contract: HTML and position describe the captured state for identification; do not copy the snapshot verbatim or hardcode its screen coordinates.",
+    "Change boundary: preserve unrelated content, behavior, and layout unless the instruction explicitly requests otherwise.",
+  ].join("\n");
+}
+
 function inferPreciseLikelyEditTarget(instructionText: string, selections: SelectionTarget[]): string | null {
   const referencedIndexes = extractInstructionElementIndexes(instructionText, selections);
   if (referencedIndexes.length === 0) {
@@ -604,7 +622,7 @@ export function buildStructureContext(selections: SelectionTarget[]): StructureC
   const ancestorClass = ancestorSummary.classes[0] ? `.${ancestorSummary.classes[0]}` : ancestorSummary.tagName;
 
   return {
-    relationship: `Relationship: ${relationship}`,
+    relationship,
     commonAncestor: ancestorSummary,
     commonAncestorSelector: createStableSelector(commonAncestor),
     commonAncestorLayout: summarizeLayout(commonAncestor),
@@ -817,13 +835,13 @@ export function getTextPreview(element: Element): string {
 }
 
 export function createStableSelector(element: Element): string {
-  const existingTestId =
-    element.getAttribute("data-testid") ||
-    element.getAttribute("data-test") ||
-    element.getAttribute("data-qa");
+  const testAttribute = ["data-testid", "data-test", "data-qa"].find((name) =>
+    element.hasAttribute(name),
+  );
 
-  if (existingTestId) {
-    return `[data-testid="${existingTestId}"]`;
+  if (testAttribute) {
+    const value = element.getAttribute(testAttribute) ?? "";
+    return `[${testAttribute}="${CSS.escape(value)}"]`;
   }
 
   const id = element.getAttribute("id");
@@ -911,6 +929,10 @@ export function renderChangeBundle(payload: ChangeBundlePayload): string {
     [
       "Instruction",
       [instructionText || "none", instructionPrecisionGuide].filter(Boolean).join("\n\n"),
+    ].join("\n"),
+    [
+      "Context",
+      renderTaskContext(payload),
     ].join("\n"),
   ];
 

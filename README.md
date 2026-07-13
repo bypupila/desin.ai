@@ -4,10 +4,10 @@ Local web inspector for selection, style preview, notes, and copyable Change Bun
 
 ## Install in a Vite React project
 
-Install the three packages in the website where you want to use the inspector:
+Install the single public package in the website where you want to use the inspector:
 
 ```bash
-npm install @desin-ai/inspector @desin-ai/inspector-vite @desin-ai/inspector-react
+npm install @design-bypupila/inspector
 ```
 
 Add the Vite plugin to `vite.config.ts`:
@@ -15,7 +15,7 @@ Add the Vite plugin to `vite.config.ts`:
 ```ts
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import { desinInspectorVite } from "@desin-ai/inspector-vite";
+import { desinInspectorVite } from "@design-bypupila/inspector/vite";
 
 export default defineConfig({
   plugins: [react(), desinInspectorVite()],
@@ -25,9 +25,9 @@ export default defineConfig({
 Initialize the inspector only in development, usually in `src/main.tsx`:
 
 ```ts
-import { initDesinInspector } from "@desin-ai/inspector";
-import { createProjectStorage } from "@desin-ai/inspector-vite/client";
-import { getReactSourceInfo } from "@desin-ai/inspector-react";
+import { initDesinInspector } from "@design-bypupila/inspector";
+import { createProjectStorage } from "@design-bypupila/inspector/vite/client";
+import { getReactSourceInfo } from "@design-bypupila/inspector/react";
 
 if (import.meta.env.DEV) {
   initDesinInspector({
@@ -56,9 +56,7 @@ npm run release:dry-run
 
 That command cleans previous builds, rebuilds all workspaces, runs TypeScript checks, and verifies the publishable package contents for:
 
-- `@desin-ai/inspector`
-- `@desin-ai/inspector-react`
-- `@desin-ai/inspector-vite`
+- `@design-bypupila/inspector` - paquete público único con runtime, Vite y React
 
 Publish after npm login and after confirming the package scope:
 
@@ -74,7 +72,7 @@ The packages are configured with `publishConfig.access: "public"`. If the packag
 For the first launch, update websites through normal dependency updates:
 
 ```bash
-npm update @desin-ai/inspector @desin-ai/inspector-vite @desin-ai/inspector-react
+npm update @design-bypupila/inspector
 ```
 
 The recommended automatic path is controlled automation, not silent production changes:
@@ -91,10 +89,19 @@ This keeps updates fast without pushing inspector changes into several pages wit
 The copied instruction bundle is intentionally structured for LLM editing workflows:
 
 - `Instruction` keeps the user text and inline element badges.
+- `Context` records the route, breakpoint scope, exact target count, reference contract, and safe change boundary. This prevents an editing agent from treating captured HTML or screen coordinates as implementation instructions.
 - `Selected elements` expands each target with DOM path, parent path, position, component, and HTML.
 - `Structure` summarizes the shared ancestor, layout, DOM order, and sibling context when more than one element is selected.
 - `Adjustments` stays focused on the style diffs or extracted rules.
-- Copying from the inspector menu exports all saved comments for the current route as one message, separated by comment. If any saved comment has no breakpoint scope, the inspector opens that comment so the breakpoint can be defined before copying.
+- Copying from the inspector menu exports all saved comments for the current route as one message, separated by comment. Copying an individual saved comment also includes its target mapping and structural context, rather than copying unresolved `[E#]` tokens alone.
+- If any saved comment has no breakpoint scope, the inspector opens that comment so the breakpoint can be defined before copying.
+- Clipboard writes use the modern Clipboard API with a local fallback for development contexts where clipboard permissions are restricted.
+
+## Interaction behavior
+
+- Selecting an element inserts its inline badge and leaves the instruction editor focused with the caret after the badge, so typing can continue immediately.
+- Inspector state saves are coalesced to avoid repeated server/file writes during rapid style changes, typing, pointer movement, or scrolling.
+- The editor keeps native spelling assistance enabled and exposes a textbox label for assistive technology.
 
 ## Structure
 

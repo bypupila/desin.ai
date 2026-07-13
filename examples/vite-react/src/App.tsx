@@ -111,36 +111,38 @@ export default function App() {
           <h3>Recent selections</h3>
           <span>Three elements pinned to the current page</span>
         </div>
-        <table>
-          <thead>
-            <tr>
-              <th>Element</th>
-              <th>Source</th>
-              <th>Scope</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Primary CTA</td>
-              <td>src/components/button.tsx:14</td>
-              <td>desktop</td>
-              <td>previewed</td>
-            </tr>
-            <tr>
-              <td>Pricing card</td>
-              <td>src/components/pricing-card.tsx:22</td>
-              <td>mobile, tablet</td>
-              <td>note attached</td>
-            </tr>
-            <tr>
-              <td>Support link</td>
-              <td>src/components/footer.tsx:9</td>
-              <td>global</td>
-              <td>queued</td>
-            </tr>
-          </tbody>
-        </table>
+        <div className="table-scroll" tabIndex={0} aria-label="Recent selections table">
+          <table>
+            <thead>
+              <tr>
+                <th>Element</th>
+                <th>Source</th>
+                <th>Scope</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Primary CTA</td>
+                <td>src/components/button.tsx:14</td>
+                <td>desktop</td>
+                <td>previewed</td>
+              </tr>
+              <tr>
+                <td>Pricing card</td>
+                <td>src/components/pricing-card.tsx:22</td>
+                <td>mobile, tablet</td>
+                <td>note attached</td>
+              </tr>
+              <tr>
+                <td>Support link</td>
+                <td>src/components/footer.tsx:9</td>
+                <td>global</td>
+                <td>queued</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </section>
     </main>
   );
